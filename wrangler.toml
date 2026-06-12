@@ -1,4 +1,4 @@
-name = "mdg-ai-proxy-v5"
+name = "mdg-ai-classifier"
 main = "cloudflare-worker-mdg-ai-proxy-v5.mjs"
 compatibility_date = "2024-11-01"
 
