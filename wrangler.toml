@@ -1,0 +1,12 @@
+name = "mdg-ai-proxy-v5"
+main = "cloudflare-worker-mdg-ai-proxy-v5.mjs"
+compatibility_date = "2024-11-01"
+
+# Non-secret variables (safe to commit). API key is a SECRET, set separately:
+#   wrangler secret put OPENROUTER_API_KEY
+[vars]
+OPENROUTER_MODEL_PRIMARY  = "google/gemma-4-31b-it:free"
+OPENROUTER_MODEL_FALLBACK = "google/gemma-4-26b-a4b-it:free"
+OPENROUTER_MODEL_OCR      = "nvidia/nemotron-nano-12b-v2-vl:free"
+OPENROUTER_APP_NAME       = "MDG AI Classifier"
+# OPENROUTER_SITE_URL     = "https://YOUR-USER.github.io/YOUR-REPO"

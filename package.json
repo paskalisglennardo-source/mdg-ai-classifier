@@ -1,0 +1,15 @@
+{
+  "name": "mdg-ai-classifier",
+  "version": "5.0.0",
+  "private": true,
+  "description": "SAP MDG material classification (OpenRouter free multimodal) — static frontend + Cloudflare Worker proxy",
+  "scripts": {
+    "test": "node tests/run.mjs",
+    "check": "node --check cloudflare-worker-mdg-ai-proxy-v5.mjs && node --check mdg_ai_openrouter_patch_v5.js && node --check tests/run.mjs",
+    "dev:worker": "wrangler dev",
+    "deploy:worker": "wrangler deploy",
+    "serve": "npx --yes http-server -p 8080 -c-1 ."
+  },
+  "engines": { "node": ">=18" },
+  "license": "UNLICENSED"
+}
