@@ -32,6 +32,7 @@ Browser  Stage 3: rule engine (scoring 40/30/20/10 + manual-review) → UI + App
 | `mdg_ai_openrouter_patch_v5.js` | Patch frontend: shortlist → /classify → rule engine → render + tombol |
 | `ai-owner-config.json` | Config owner: `aiProxyUrl`, model names, thresholds (di-edit setelah deploy worker) |
 | `cloudflare-worker-mdg-ai-proxy-v5.mjs` | Worker proxy: `/health` `/chat` `/vision` `/classify` |
+| `functions/api/[[path]].js` | **Cloudflare Pages Function** — proxy same-origin `/api/*` (Opsi A, reuse worker logic) |
 | `wrangler.toml`, `.env.example` | Konfig deploy worker |
 | `tests/run.mjs` | `npm test`: syntax + KB integrity + worker mock |
 | `.github/workflows/*` | CI, deploy Pages, deploy Worker |
@@ -62,60 +63,64 @@ git remote add origin https://github.com/<USER>/<REPO>.git
 git push -u origin main
 ```
 
-### 2. Aktifkan GitHub Pages (frontend)
-1. Repo → **Settings → Pages**.
-2. **Build and deployment → Source = GitHub Actions**.
-3. Push ke `main` akan menjalankan workflow `Deploy GitHub Pages`. Setelah hijau, situs ada di:
-   `https://<USER>.github.io/<REPO>/`
-4. Buka URL itu — form MDG muncul, data ter-load otomatis (`form_data_final.json`).
-   AI belum aktif sampai langkah 3–4 (worker + config) selesai.
+### 2. Deploy (pilih SALAH SATU)
 
-> Catatan: `index.html` sudah dipatch agar memuat `./form_data_final.json` secara **relatif**, jadi aman di project page (`/<REPO>/`).
+#### 🟢 Opsi A — Cloudflare Pages + Pages Functions (REKOMENDASI, anti-error 405)
+Frontend **dan** proxy AI hidup dalam **satu** deploy Cloudflare Pages. Proxy jadi
+same-origin di `/api/*` (folder `functions/api/[[path]].js`), jadi **tidak ada worker
+terpisah dan tidak ada CORS**. `ai-owner-config.json` sudah di-set `"aiProxyUrl": "/api"`,
+jadi tidak perlu diedit.
 
-### 3. Deploy Cloudflare Worker (proxy AI)
-Pilih salah satu:
+1. Cloudflare dashboard → **Workers & Pages → Create → Pages → Connect to Git**
+   (atau **Direct Upload** semua isi folder ini — **termasuk folder `functions/`**).
+2. Build settings: **Framework preset = None**, **Build command = (kosong)**,
+   **Output directory = `/`** (root). Deploy.
+3. **Settings → Environment variables → Add variable** (Production *dan* Preview):
+   - `OPENROUTER_API_KEY` = API key OpenRouter kamu → centang **Encrypt** (jadi Secret).
+   - (opsional) `OPENROUTER_MODEL_PRIMARY`, `OPENROUTER_MODEL_FALLBACK`, `OPENROUTER_MODEL_OCR`.
+4. **Re-deploy** (env var baru hanya aktif setelah deploy ulang).
+5. Cek: buka `https://<project>.pages.dev/api/health` → harus
+   `{"ok":true,"version":"v5","key_configured":true,...}`.
 
-**A. Via laptop (wrangler):**
-```bash
-npm i -g wrangler
-wrangler login
-wrangler secret put OPENROUTER_API_KEY     # paste API key OpenRouter (TIDAK masuk git)
-wrangler deploy                            # output: https://mdg-ai-proxy-v5.<subdomain>.workers.dev
-```
+Selesai — form langsung pakai `/api/*`. Tidak perlu sentuh `ai-owner-config.json`.
 
-**B. Via GitHub Actions (otomatis tiap push):**
-1. Buat Cloudflare API token (Workers Scripts: Edit) di
-   <https://dash.cloudflare.com/profile/api-tokens>.
-2. Repo → **Settings → Secrets and variables → Actions → New repository secret**:
-   - `CLOUDFLARE_API_TOKEN` = token tadi.
-3. Set worker secret OpenRouter (sekali, dari laptop): `wrangler secret put OPENROUTER_API_KEY`.
-   (Secret OpenRouter tidak bisa di-set dari Actions tanpa langkah tambahan — set manual sekali via wrangler atau dashboard Cloudflare → Worker → Settings → Variables → Encrypt.)
-4. Push → workflow `Deploy Cloudflare Worker` jalan.
-
-Tes worker:
-```bash
-curl https://<WORKER-URL>/health
-# {"ok":true,"version":"v5","models":{...},"key_configured":true,...}
-```
-
-### 4. Sambungkan frontend ke worker
-1. Edit `ai-owner-config.json`:
-   ```json
-   { "aiProxyUrl": "https://<WORKER-URL>", "aiEnabled": true }
+#### ⚪ Opsi B — GitHub Pages (frontend) + Cloudflare Worker (proxy terpisah)
+Pakai ini kalau frontend mau di GitHub Pages.
+1. **GitHub Pages:** Repo → Settings → Pages → Source = **GitHub Actions**. Situs di `https://<USER>.github.io/<REPO>/`.
+2. **Worker:**
+   ```bash
+   npm i -g wrangler
+   wrangler login
+   wrangler secret put OPENROUTER_API_KEY     # tidak masuk git
+   wrangler deploy                            # output: https://mdg-ai-proxy-v5.<subdomain>.workers.dev
+   curl https://<WORKER-URL>/health           # harus version "v5"
    ```
-2. (Opsional) set `OPENROUTER_SITE_URL` di `wrangler.toml` ke URL Pages kamu lalu `wrangler deploy` lagi (untuk atribusi OpenRouter).
-3. Commit & push. Pages redeploy otomatis.
+3. **Sambungkan:** edit `ai-owner-config.json` → `"aiProxyUrl": "https://<WORKER-URL>"` (URL worker penuh, BUKAN `/api`). Commit & push.
 
-### 5. Pakai
-Buka situs Pages → panel AI → upload foto material + isi description → **Analyze**.
+> `index.html` memuat `./form_data_final.json` relatif, jadi aman di project page `/<REPO>/`.
+
+### 3. Pakai
+Buka situs → panel AI → upload foto material + isi description → **Analyze**.
 Hasil tampil sebagai kartu (recommended_class, confidence, evidence, candidates, characteristic suggestions) dengan tombol:
 **Apply Class**, **Apply Class + Characteristics**, **Copy JSON**, **Retry (fallback model)**.
 
 ---
 
-## Setting `OPENROUTER_API_KEY` di Cloudflare (ringkas)
-- **Recommended:** `wrangler secret put OPENROUTER_API_KEY` (encrypted, tidak terlihat lagi).
-- **Dashboard:** Cloudflare → Workers & Pages → worker kamu → **Settings → Variables and Secrets → Add → Encrypt**.
+## ⚠️ Troubleshooting: `HTTP 405 ... Worker mungkin error`
+405 = **Method Not Allowed**: request POST mendarat di server yang tidak menerima POST
+(biasanya situs **Pages statis** itu sendiri, atau URL worker yang salah/belum deploy).
+Penyebab & solusi:
+- **Pakai Opsi A** tapi `aiProxyUrl` bukan `/api` → set kembali ke `"/api"` lalu re-deploy.
+- **Pakai Opsi A** tapi folder `functions/` tidak ikut ter-upload → upload ulang seluruh repo
+  termasuk `functions/api/[[path]].js`. Cek `https://<project>.pages.dev/api/health`.
+- **Pakai Opsi B** tapi `aiProxyUrl` menunjuk ke URL Pages/GitHub Pages (statis) bukan ke
+  URL **worker** → ganti ke `https://<WORKER-URL>` worker yang benar.
+- `key_configured:false` di `/api/health` atau `/health` → `OPENROUTER_API_KEY` belum di-set
+  (Pages: Environment variables + Encrypt; Worker: `wrangler secret put`). Re-deploy setelah set.
+
+## Setting `OPENROUTER_API_KEY` (ringkas)
+- **Pages (Opsi A):** Pages project → Settings → **Environment variables** → Add → **Encrypt** → re-deploy.
+- **Worker (Opsi B):** `wrangler secret put OPENROUTER_API_KEY` (encrypted).
 - Jangan pernah menaruh key di `index.html`, `ai-owner-config.json`, atau file repo apa pun.
 
 ---
