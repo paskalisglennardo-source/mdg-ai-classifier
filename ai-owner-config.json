@@ -1,6 +1,6 @@
 {
   "aiEnabled": true,
-  "aiProxyUrl": "https://REPLACE-WITH-YOUR-WORKER.workers.dev",
+  "aiProxyUrl": "mdg-ai-proxy-v5.paskalis-glennardo.workers.dev",
   "kbUrl": "./mdg_ai_class_kb.json",
   "models": {
     "primary": "google/gemma-4-31b-it:free",
@@ -10,5 +10,5 @@
   "image": { "maxPx": 1400, "quality": 0.82, "detail": "high" },
   "thresholds": { "auto_accept": 85, "manual_review_min": 60, "top1_top2_min_gap": 8 },
   "adminName": "MDG Admin",
-  "adminContact": "+62XXXXXXXXXXX"
+  "adminContact": "+6282323265275"
 }
